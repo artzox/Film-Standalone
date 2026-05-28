@@ -486,6 +486,15 @@ uniform float film_lens_ca <
     ui_min = 0.0; ui_max = 0.02; ui_step = 0.0005;
 > = 0.0;
 
+uniform float film_lens_ca_highlight <
+    ui_type     = "drag"; ui_label = "CA on Highlights";
+    ui_category = "Lens";
+    ui_tooltip  = "Additional chromatic aberration boost on bright highlights.\n"
+                  "Simulates the increased fringing on overexposed areas.\n"
+                  "0.0 = disabled. 0.003-0.010 = subtle. 0.02+ = visible fringing.";
+    ui_min = 0.0; ui_max = 0.05; ui_step = 0.001;
+> = 0.0;
+
 uniform float film_lens_softness <
     ui_type     = "drag"; ui_label = "Edge Softness";
     ui_category = "Lens";
@@ -1536,10 +1545,17 @@ void film_lens_PS(
     // Distortion UV
     float2 uv_d = get_lens_uv(texcoord);
 
-    // Chromatic aberration: red/blue shift radially from centre
-    float2 ca_offs = (texcoord - 0.5) * film_lens_ca;
-    float2 uv_r   = get_lens_uv(texcoord + ca_offs);
-    float2 uv_b   = get_lens_uv(texcoord - ca_offs);
+    // Chromatic aberration: red/blue shift radially from centre.
+    // Highlight CA scales the offset based on the brightness at the SOURCE position
+    // being sampled for R/B -- brighter pixels get more separation.
+    // Base CA applies uniformly; highlight CA adds extra on bright pixels.
+    float2 ca_base = (texcoord - 0.5) * film_lens_ca;
+    float2 ca_hi   = (texcoord - 0.5) * film_lens_ca_highlight;
+    float2 uv_r   = get_lens_uv(texcoord + ca_base);
+    float2 uv_b   = get_lens_uv(texcoord - ca_base);
+    // Highlight CA UV offsets -- applied per-channel after sampling
+    float2 uv_r2  = get_lens_uv(texcoord + ca_base + ca_hi);
+    float2 uv_b2  = get_lens_uv(texcoord - ca_base - ca_hi);
 
     // Sample with Lanczos2 + additional anti-aliasing filter
     // The Lanczos2 alone doesn't suppress low-frequency moire from lens warp
@@ -1581,6 +1597,15 @@ void film_lens_PS(
         c.r = film_lanczos2(ReShade::BackBuffer, uv_r).r;
         c.g = film_lanczos2(ReShade::BackBuffer, uv_d).g;
         c.b = film_lanczos2(ReShade::BackBuffer, uv_b).b;
+    }
+    // Highlight CA: additional R/B offset on bright pixels.
+    // Accumulates on top of base CA -- bright areas get more separation.
+    if (film_lens_ca_highlight > 0.0001)
+    {
+        float hi_luma = dot(c, float3(0.2126, 0.7152, 0.0722));
+        float hi_mix  = saturate(hi_luma * 2.0 - 0.5); // starts at luma 0.25, full at 0.75
+        c.r = lerp(c.r, film_lanczos2(ReShade::BackBuffer, uv_r2).r, hi_mix);
+        c.b = lerp(c.b, film_lanczos2(ReShade::BackBuffer, uv_b2).b, hi_mix);
     }
 
     // Edge softness: optical field curvature -- centre stays sharp

@@ -136,14 +136,13 @@ All features are disabled by default. Enable only what you need to keep the UI c
 | Lens Distortion | Barrel/pincushion distortion amount. Positive = barrel, negative = pincushion |
 | Lens Preset | Preset lens profiles with characteristic distortion curves |
 | Zoom | Scale image after distortion to fill screen. 1.005 typically hides edge artefacts at moderate distortion |
-| Edge Fill Mode | How to fill areas exposed by barrel distortion: Clamp, Mirror, or Stretch |
 
 **Optics:**
 
 | Setting | Description |
 |---|---|
 | Chromatic Aberration | Lateral colour fringing — R/B channel separation |
-| CA on Highlights | Additional CA boost on bright areas |
+| CA on Highlights | Additional CA boost on bright highlights (above ~70% luma) |
 | Vignette | Optical corner darkening |
 | Edge Softness | Optical field curvature — centre sharp, edges soft |
 
