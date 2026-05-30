@@ -95,6 +95,14 @@
     #define FLARE_DOWNSCALE 4
 #endif
 
+// Lens resampling quality:
+// 0 = bilinear (fastest, 3 samples)
+// 1 = Catmull-Rom bicubic (default -- sharp, 5 hardware samples via bilinear trick)
+// 2 = Lanczos2 (highest quality, expensive -- 16 taps + sin() per sample)
+#ifndef LENS_QUALITY
+    #define LENS_QUALITY 1
+#endif
+
 // Blur samples per pass -- more = smoother hexagon (8 is good, 16 is high quality)
 #ifndef FLARE_BLUR_SAMPLES
     #define FLARE_BLUR_SAMPLES 16
@@ -1218,6 +1226,43 @@ float3 film_lanczos2(sampler2D tex, float2 uv)
     return result / max(wsum, 0.0001);
 }
 
+// Catmull-Rom bicubic via 5 bilinear hardware samples (Mitchell-Netravali variant)
+// Equivalent quality to 16-tap bicubic at the cost of 5 hardware samples.
+// Reference: "Filmic SMAA" / GPU Gems bicubic texture fetch optimisation.
+float3 film_catmull_rom(sampler2D tex, float2 uv)
+{
+    float2 px      = ReShade::PixelSize;
+    float2 uv_px   = uv / px;
+    float2 tc      = floor(uv_px - 0.5) + 0.5;
+    float2 f       = uv_px - tc;
+    float2 f2      = f * f;
+    float2 f3      = f2 * f;
+
+    // Catmull-Rom weights
+    float2 w0 = -0.5*f3 + f2 - 0.5*f;
+    float2 w1 =  1.5*f3 - 2.5*f2 + 1.0;
+    float2 w2 = -1.5*f3 + 2.0*f2 + 0.5*f;
+    float2 w3 =  0.5*f3 - 0.5*f2;
+
+    // Combine into 2 bilinear samples per axis (5 total with centre)
+    float2 w12     = w1 + w2;
+    float2 tc0     = (tc - 1.0) * px;
+    float2 tc12    = (tc + w2 / w12) * px;
+    float2 tc3     = (tc + 2.0) * px;
+
+    float3 c =
+        tex2D(tex, float2(tc0.x,  tc0.y )).rgb * (w0.x  * w0.y ) +
+        tex2D(tex, float2(tc12.x, tc0.y )).rgb * (w12.x * w0.y ) +
+        tex2D(tex, float2(tc3.x,  tc0.y )).rgb * (w3.x  * w0.y ) +
+        tex2D(tex, float2(tc0.x,  tc12.y)).rgb * (w0.x  * w12.y) +
+        tex2D(tex, float2(tc12.x, tc12.y)).rgb * (w12.x * w12.y) +
+        tex2D(tex, float2(tc3.x,  tc12.y)).rgb * (w3.x  * w12.y) +
+        tex2D(tex, float2(tc0.x,  tc3.y )).rgb * (w0.x  * w3.y ) +
+        tex2D(tex, float2(tc12.x, tc3.y )).rgb * (w12.x * w3.y ) +
+        tex2D(tex, float2(tc3.x,  tc3.y )).rgb * (w3.x  * w3.y );
+    return c;
+}
+
 // ============================================================
 // Lens distortion helpers (PTLens model, applied in reverse)
 // Only compiled when ENABLE_LENS=1
@@ -1569,25 +1614,23 @@ void film_lens_PS(
     float  aa_amt = saturate(warp_h * 200.0); // scale to [0,1] -- stronger at edges
 
     float3 c;
+    #if LENS_QUALITY >= 2
+    // Lanczos2: highest quality, expensive (16 taps + sin() per sample)
     if (aa_amt > 0.01)
     {
-        // Blend 3 vertical samples at distorted UV to suppress horizontal bands
         float2 off = float2(0.0, px.y * 0.5);
         float3 c0 = film_lanczos2(ReShade::BackBuffer, uv_d);
         float3 c1 = film_lanczos2(ReShade::BackBuffer, uv_d + off);
         float3 c2 = film_lanczos2(ReShade::BackBuffer, uv_d - off);
         float3 c_aa = (c0 * 2.0 + c1 + c2) * 0.25;
-
         float3 c0r = film_lanczos2(ReShade::BackBuffer, uv_r);
         float3 c1r = film_lanczos2(ReShade::BackBuffer, uv_r + off);
         float3 c2r = film_lanczos2(ReShade::BackBuffer, uv_r - off);
         float3 c_r = (c0r * 2.0 + c1r + c2r) * 0.25;
-
         float3 c0b = film_lanczos2(ReShade::BackBuffer, uv_b);
         float3 c1b = film_lanczos2(ReShade::BackBuffer, uv_b + off);
         float3 c2b = film_lanczos2(ReShade::BackBuffer, uv_b - off);
         float3 c_b = (c0b * 2.0 + c1b + c2b) * 0.25;
-
         c.r = lerp(film_lanczos2(ReShade::BackBuffer, uv_r).r, c_r.r, aa_amt);
         c.g = lerp(film_lanczos2(ReShade::BackBuffer, uv_d).g, c_aa.g, aa_amt);
         c.b = lerp(film_lanczos2(ReShade::BackBuffer, uv_b).b, c_b.b, aa_amt);
@@ -1598,14 +1641,33 @@ void film_lens_PS(
         c.g = film_lanczos2(ReShade::BackBuffer, uv_d).g;
         c.b = film_lanczos2(ReShade::BackBuffer, uv_b).b;
     }
+    #elif LENS_QUALITY == 1
+    // Catmull-Rom bicubic: sharp bicubic via 9 bilinear hardware samples (default)
+    c.r = film_catmull_rom(ReShade::BackBuffer, uv_r).r;
+    c.g = film_catmull_rom(ReShade::BackBuffer, uv_d).g;
+    c.b = film_catmull_rom(ReShade::BackBuffer, uv_b).b;
+    #else
+    // Bilinear: fastest, 3 hardware samples
+    c.r = tex2D(ReShade::BackBuffer, uv_r).r;
+    c.g = tex2D(ReShade::BackBuffer, uv_d).g;
+    c.b = tex2D(ReShade::BackBuffer, uv_b).b;
+    #endif
     // Highlight CA: additional R/B offset on bright pixels.
     // Accumulates on top of base CA -- bright areas get more separation.
     if (film_lens_ca_highlight > 0.0001)
     {
         float hi_luma = dot(c, float3(0.2126, 0.7152, 0.0722));
-        float hi_mix  = saturate(hi_luma * 2.0 - 0.5); // starts at luma 0.25, full at 0.75
+        float hi_mix  = saturate(hi_luma * 2.0 - 0.5);
+        #if LENS_QUALITY >= 2
         c.r = lerp(c.r, film_lanczos2(ReShade::BackBuffer, uv_r2).r, hi_mix);
         c.b = lerp(c.b, film_lanczos2(ReShade::BackBuffer, uv_b2).b, hi_mix);
+        #elif LENS_QUALITY == 1
+        c.r = lerp(c.r, film_catmull_rom(ReShade::BackBuffer, uv_r2).r, hi_mix);
+        c.b = lerp(c.b, film_catmull_rom(ReShade::BackBuffer, uv_b2).b, hi_mix);
+        #else
+        c.r = lerp(c.r, tex2D(ReShade::BackBuffer, uv_r2).r, hi_mix);
+        c.b = lerp(c.b, tex2D(ReShade::BackBuffer, uv_b2).b, hi_mix);
+        #endif
     }
 
     // Edge softness: optical field curvature -- centre stays sharp
@@ -1613,16 +1675,22 @@ void film_lens_PS(
     {
         float r = length((texcoord - 0.5) * float2(float(BUFFER_WIDTH)/float(BUFFER_HEIGHT), 1.0));
         float blur_amt = r * r * film_lens_softness;
-        float3 soft = 0.0;
-        float  w_s = 0.0;
-        for (int dy = -2; dy <= 2; dy++)
-        for (int dx = -2; dx <= 2; dx++)
+        // Only blur where blur_amt is meaningful -- centre pixels skip entirely
+        if (blur_amt > 0.001)
         {
-            float wt = exp(-(float(dx*dx + dy*dy)) * 0.5);
-            soft += tex2D(ReShade::BackBuffer, uv_d + float2(dx,dy) * px * blur_amt * 4.0).rgb * wt;
-            w_s += wt;
+            // Precompute weights to avoid exp() per tap
+            static const float sw[5] = { 0.0625, 0.25, 0.375, 0.25, 0.0625 };
+            float3 soft = 0.0;
+            float  w_s  = 0.0;
+            [unroll] for (int dy = -2; dy <= 2; dy++)
+            [unroll] for (int dx = -2; dx <= 2; dx++)
+            {
+                float wt = sw[dx+2] * sw[dy+2];
+                soft += tex2D(ReShade::BackBuffer, uv_d + float2(dx,dy) * px * blur_amt * 4.0).rgb * wt;
+                w_s  += wt;
+            }
+            c = lerp(c, soft / max(w_s, 0.001), saturate(blur_amt * 2.0));
         }
-        c = lerp(c, soft / max(w_s, 0.001), saturate(blur_amt * 2.0));
     }
 
     // Debug: raw depth split-screen -- always runs when enabled, no other gates

@@ -1,6 +1,6 @@
 # Film-Standalone
 
-**Version 1.0.0**
+**Version 1.0.1**
 
 A cinematic film emulation shader for ReShade. Simulates the full photochemical film pipeline — colour negative response, print stock grading, optical grain, halation, lens optics, and camera artefacts. Designed for use across a broad game library with per-game presets.
 
@@ -42,6 +42,14 @@ All features are disabled by default. Enable only what you need to keep the UI c
 |---|---|---|
 | `FLARE_DOWNSCALE` | 4 | Resolution divisor for flare passes (2=half, 4=quarter res) |
 | `FLARE_BLUR_SAMPLES` | 16 | Blur taps per pass — more = smoother hexagon |
+
+**Lens resampling quality:**
+
+| Define | Value | Description |
+|---|---|---|
+| `LENS_QUALITY` | 0 | Bilinear — fastest, 3 hardware samples |
+| `LENS_QUALITY` | 1 | Catmull-Rom bicubic — **default**, 9 hardware samples, sharp bicubic quality |
+| `LENS_QUALITY` | 2 | Lanczos2 — maximum quality, expensive (16 taps + sin() per sample) |
 
 **Depth of Field preprocessors** (when `ENABLE_DOF=1`):
 
@@ -133,8 +141,8 @@ All features are disabled by default. Enable only what you need to keep the UI c
 
 | Setting | Description |
 |---|---|
-| Lens Distortion | Barrel/pincushion distortion amount. Positive = barrel, negative = pincushion |
-| Lens Preset | Preset lens profiles with characteristic distortion curves |
+| Lens Distortion | Barrel/pincushion distortion amount. Positive = barrel, negative = pincushion. Only used when Lens Preset is set to Custom |
+| Lens Preset | Predefined lens distortion curves modelling specific lens characters. Custom = use Distortion slider. Presets: 35mm Spherical, 50mm Standard, 85mm Portrait, 28mm Wide, Anamorphic 2x, Petzval Swirl, Vintage 58mm |
 | Zoom | Scale image after distortion to fill screen. 1.005 typically hides edge artefacts at moderate distortion |
 
 **Optics:**
@@ -142,7 +150,7 @@ All features are disabled by default. Enable only what you need to keep the UI c
 | Setting | Description |
 |---|---|
 | Chromatic Aberration | Lateral colour fringing — R/B channel separation |
-| CA on Highlights | Additional CA boost on bright highlights (above ~70% luma) |
+| CA on Highlights | Additional chromatic aberration on bright highlights. Scales with pixel luminance — bright areas get more R/B separation than dark areas. Can be used with or without base CA |
 | Vignette | Optical corner darkening |
 | Edge Softness | Optical field curvature — centre sharp, edges soft |
 
@@ -255,7 +263,7 @@ Available regardless of which features are enabled:
 - All features are off by default — only enabled features cost GPU time
 - ENABLE_FLARE: flare passes run at 1/FLARE_DOWNSCALE² resolution (default 1/16th pixel count)
 - ENABLE_GRAIN: two passes at full resolution
-- ENABLE_LENS: single pass at full resolution; bokeh 19-tap kernel only fires on pixels above threshold
+- ENABLE_LENS: single pass at full resolution. Default LENS_QUALITY=1 (Catmull-Rom, 9 samples per R/G/B). Bokeh 19-tap kernel only fires on pixels above threshold. Set LENS_QUALITY=0 for maximum performance
 - ENABLE_DOF: requires depth buffer; adds two passes
 - ENABLE_FLARE bloom: 8 passes at 1/256th resolution + one full-res blend — very low cost
 
@@ -281,6 +289,16 @@ Available regardless of which features are enabled:
 ---
 
 ## Changelog
+
+### 1.0.1 — 2026-05
+
+- **Catmull-Rom bicubic resampling** — new default lens resampling (LENS_QUALITY=1). Sharp bicubic quality via 9 bilinear hardware samples, significantly cheaper than the previous Lanczos2 default. Lanczos2 still available at LENS_QUALITY=2
+- **LENS_QUALITY preprocessor** — three-level quality gate: 0=bilinear, 1=Catmull-Rom (default), 2=Lanczos2
+- **CA on Highlights restored** — chromatic aberration that scales with pixel luminance, independent of base CA slider
+- **Edge softness optimised** — precomputed separable weights replace per-tap exp() calls; early exit at screen centre
+- **Performance** — above changes reduce Lens pass cost substantially at 4K
+
+---
 
 ### 1.0.0 — 2026-05
 Initial release.
