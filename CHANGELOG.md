@@ -1,5 +1,13 @@
 # Film-Standalone Changelog
 
+## [1.0.2] — 2026-06
+
+### New Features
+
+- **Gamut expansion** (`ENABLE_GAMUT_EXPAND=1`) — same implementation as CRT-Standalone. Expands Rec.709 chrominance toward Rec.2020 within the existing HDR container. Three methods: Oklab, ICtCp (recommended), darktable UCS 2022. All three pipelines supported. Neutral and skin tone protection sliders. Runs as a final pass after all film processing
+
+---
+
 ## [1.0.1] — 2026-05
 
 ### Improvements

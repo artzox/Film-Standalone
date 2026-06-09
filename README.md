@@ -1,6 +1,6 @@
 # Film-Standalone
 
-**Version 1.0.1**
+**Version 1.0.2**
 
 A cinematic film emulation shader for ReShade. Simulates the full photochemical film pipeline — colour negative response, print stock grading, optical grain, halation, lens optics, and camera artefacts. Designed for use across a broad game library with per-game presets.
 
@@ -35,6 +35,7 @@ All features are disabled by default. Enable only what you need to keep the UI c
 | `ENABLE_GATE` | 0 / 1 | Gate weave and film breathing |
 | `ENABLE_TRANSFER` | 0 / 1 | Composite artefacts and edge enhancement |
 | `ENABLE_VHS` | 0 / 1 | VHS chroma smear, tracking noise, dropout |
+| `ENABLE_GAMUT_EXPAND` | 0 / 1 | Gamut expansion — Rec.709 chrominance → Rec.2020 |
 
 **Flare quality preprocessors** (when `ENABLE_FLARE=1`):
 
@@ -258,6 +259,26 @@ Available regardless of which features are enabled:
 
 ---
 
+## Gamut Expansion
+
+Expands Rec.709 colour primaries toward Rec.2020 within the existing HDR container. Luminance is unchanged — only colour primaries are expanded. Designed for games and content that output HDR luminance but Rec.709 colours. Runs as a final pass after all film processing.
+
+Requires `ENABLE_GAMUT_EXPAND=1`.
+
+| Setting | Description |
+|---|---|
+| Expansion Strength | How far to push saturated colours toward Rec.2020. 0.15–0.25 recommended starting point. 0.3–0.5 = vivid but may affect intentional grade decisions |
+| Neutral Protection | Protects low-saturation near-grey colours from expansion. Preserves intentional desaturated grades. Default 0.15 |
+| Skin Tone Protection | Reduces expansion in skin tone hue range. Leave at 1.0 for most content |
+| Expansion Method | **Oklab** — simple perceptual chroma boost. **ICtCp** (recommended) — Dolby/ITU broadcast standard, luminance-weighted so bright content expands less than midtones. **darktable UCS 2022** — most accurate, accounts for Helmholtz-Kohlrausch effect |
+
+All three pipelines supported:
+- Pipeline 0: sRGB decode → expand → re-encode, stays within 0–1
+- Pipeline 1: scRGB direct linear expand, HDR values above 1.0 preserved
+- Pipeline 2: PQ decode → expand → PQ re-encode
+
+---
+
 ## Performance Notes
 
 - All features are off by default — only enabled features cost GPU time
@@ -289,6 +310,12 @@ Available regardless of which features are enabled:
 ---
 
 ## Changelog
+
+### 1.0.2 — 2026-06
+
+- **Gamut expansion** — same three-method implementation as CRT-Standalone (Oklab, ICtCp, darktable UCS 2022)
+
+---
 
 ### 1.0.1 — 2026-05
 
