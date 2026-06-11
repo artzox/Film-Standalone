@@ -4,7 +4,14 @@
 
 ### New Features
 
-- **Gamut expansion** (`ENABLE_GAMUT_EXPAND=1`) — same implementation as CRT-Standalone. Expands Rec.709 chrominance toward Rec.2020 within the existing HDR container. Three methods: Oklab, ICtCp (recommended), darktable UCS 2022. All three pipelines supported. Neutral and skin tone protection sliders. Runs as a final pass after all film processing
+- **Temporal Cadence** — film grain, gate weave, and breathing can now step at authentic film projection cadence (24/25/30 fps) instead of the game's render rate. Timer-based, so frame-rate independent and VRR-stable. Default remains "Every frame" (legacy). VHS artifacts intentionally stay frame-based as analog tape noise is continuous
+
+- **Gamut expansion** (`ENABLE_GAMUT_EXPAND=1`) — same implementation as CRT-Standalone. Expands Rec.709 chrominance toward Rec.2020 within the existing HDR container. Three methods: Oklab, ICtCp (recommended), darktable UCS 2022. All three pipelines supported. Neutral protection, skin tone protection, and chroma ceiling sliders. Chroma ceiling prevents neon overshoot on already-saturated colours without ever reducing below original game saturation. Runs as a final pass after all film processing
+
+### Bug Fixes
+
+- **Flare source sampler sRGB gating** — `SRGBTexture = true` is now applied only on Pipeline 0. The flag is silently ignored on float HDR backbuffers, which made flare threshold semantics differ between pipelines; gating makes the behaviour explicit and consistent
+- **ICtCp gamut expansion nit scaling** — corrected from 100 to 80 nits (scRGB defines 1.0 = 80 nits SDR reference white), placing the luminance weighting curve at the correct position
 
 ---
 

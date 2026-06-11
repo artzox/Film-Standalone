@@ -133,6 +133,7 @@ All features are disabled by default. Enable only what you need to keep the UI c
 | Grain in Shadows | Grain presence in dark areas |
 | Grain Colour | Colour vs monochrome grain |
 | Animate Grain | Frame-to-frame variation |
+| Temporal Cadence | Stepping rate for grain, gate weave, and breathing. **24 fps (recommended)** matches real film projection cadence and is frame-rate independent / VRR-stable. "Every frame" = legacy behaviour (at 120 fps grain flickers at 120 Hz). VHS artifacts intentionally stay frame-based |
 
 ---
 
@@ -271,6 +272,7 @@ Requires `ENABLE_GAMUT_EXPAND=1`.
 | Neutral Protection | Protects low-saturation near-grey colours from expansion. Preserves intentional desaturated grades. Default 0.15 |
 | Skin Tone Protection | Reduces expansion in skin tone hue range. Leave at 1.0 for most content |
 | Expansion Method | **Oklab** — simple perceptual chroma boost. **ICtCp** (recommended) — Dolby/ITU broadcast standard, luminance-weighted so bright content expands less than midtones. **darktable UCS 2022** — most accurate, accounts for Helmholtz-Kohlrausch effect |
+| Chroma Ceiling | Limits expansion on already-saturated colours to prevent neon overshoot. Never reduces saturation below original game output. 0 = no ceiling, 0.3–0.5 = moderate, 1.0 = maximum protection |
 
 All three pipelines supported:
 - Pipeline 0: sRGB decode → expand → re-encode, stays within 0–1

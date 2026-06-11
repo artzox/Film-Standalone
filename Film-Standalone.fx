@@ -469,6 +469,41 @@ uniform bool film_grain_animate <
     ui_tooltip  = "Each frame gets independent grain (authentic film behaviour).\\n"
                   "Disable for a frozen grain pattern.";
 > = true;
+
+// Temporal cadence: grain, weave, breathing step at film projection rate
+#if ENABLE_GRAIN || ENABLE_GATE
+uniform int film_cadence <
+    ui_type     = "combo"; ui_label = "Temporal Cadence";
+    ui_category = "Film Grain";
+    ui_tooltip  = "Stepping rate for film grain, gate weave, and breathing.\n"
+                  "\n"
+                  "Every frame: artifacts re-randomise at the game's render rate\n"
+                  "  (legacy behaviour -- at 120 fps grain flickers at 120 Hz).\n"
+                  "24 fps: authentic film projection cadence (recommended).\n"
+                  "  Frame-rate independent and VRR-stable (timer-based).\n"
+                  "25 / 30 fps: PAL / NTSC telecine cadence.";
+    ui_items    = "Every frame (engine rate)\0""24 fps (film, recommended)\0"
+                  "25 fps (PAL)\0""30 fps (NTSC)\0";
+> = 0;
+#endif // ENABLE_GRAIN || ENABLE_GATE
+
+uniform uint  FRAMECOUNT  < source = "framecount"; >;
+uniform float FILM_TIMER  < source = "timer"; >;  // milliseconds since start
+
+// film_temporal_tick: returns frame tick for cadence-controlled artifacts.
+// Defined outside feature gates so it compiles whenever either GRAIN or GATE is on.
+#if ENABLE_GRAIN || ENABLE_GATE
+uint film_temporal_tick(uint div)
+{
+    if (film_cadence > 0)
+    {
+        float fps = (film_cadence == 1) ? 24.0
+                  : (film_cadence == 2) ? 25.0 : 30.0;
+        return uint(FILM_TIMER * 0.001 * fps);
+    }
+    return FRAMECOUNT / div;
+}
+#endif // ENABLE_GRAIN || ENABLE_GATE
 #endif // ENABLE_GRAIN
 
 // ============================================================
@@ -761,6 +796,21 @@ uniform int film_gamut_expand_method <
                   "darktable UCS 2022: most accurate, Helmholtz-Kohlrausch aware.";
     ui_items    = "Oklab\0ICtCp (recommended)\0darktable UCS 2022\0";
 > = 1;
+
+uniform float film_gamut_expand_ceiling <
+    ui_type = "drag"; ui_label = "Chroma Ceiling";
+    ui_category = "Gamut Expansion";
+    ui_tooltip = "Limits how much expansion is applied to already-saturated colours.\n"
+                 "Never reduces saturation below the original game output --\n"
+                 "only prevents the expansion from going too far on vivid colours.\n"
+                 "\n"
+                 "0.0 = no ceiling, full expansion applied (default).\n"
+                 "0.3-0.5 = moderate -- neon colours reined in, muted colours\n"
+                 "          still get the full expansion benefit.\n"
+                 "1.0 = maximum -- expansion only lifts colours that were\n"
+                 "      already near-neutral, vivid colours unchanged.";
+    ui_min = 0.0; ui_max = 1.0; ui_step = 0.01;
+> = 0.0;
 #endif // ENABLE_GAMUT_EXPAND
 
 // ============================================================
@@ -888,8 +938,7 @@ uniform float film_vhs_head_switch <
 // ReShade built-in uniforms
 // ============================================================
 
-uniform uint  FRAMECOUNT  < source = "framecount"; >;
-uniform float FILM_TIMER  < source = "timer"; >;  // milliseconds since start
+
 
 // ============================================================
 // Textures and samplers
@@ -917,14 +966,19 @@ texture2D film_flare_prepare_tex < pooled = false; >
 sampler2D film_flare_prepare_samp { Texture = film_flare_prepare_tex; AddressU = BORDER; AddressV = BORDER; };
 
 // Backbuffer sampler with BORDER addressing for flare -- out-of-bounds = black
-// This matches HexLensFlare's sColor sampler (AddressU/V = BORDER)
+// This matches HexLensFlare's sColor sampler (AddressU/V = BORDER).
+// SRGBTexture only on Pipeline 0: the sRGB decode flag is invalid (silently
+// ignored) on float HDR backbuffers, so gating keeps threshold semantics
+// explicit and consistent across pipelines.
 texture2D film_flare_src_tex : COLOR;
 sampler2D film_flare_src_samp
 {
     Texture  = film_flare_src_tex;
     AddressU = BORDER;
     AddressV = BORDER;
+#if PIPELINE == 0
     SRGBTexture = true;
+#endif
 };
 
 texture2D film_flare_vblur_tex < pooled = false; >
@@ -1907,13 +1961,13 @@ void film_gate_PS(
     in  float2 texcoord : TEXCOORD0,
     out float4 color    : SV_Target)
 {
-    // Gate weave: slow hash-based horizontal drift
-    uint  t_weave = (FRAMECOUNT / 2u) * 0x9E3779B9u;
+    // Gate weave: slow hash-based horizontal drift, stepped at film cadence
+    uint  t_weave = film_temporal_tick(2u) * 0x9E3779B9u;
     float weave_x = (film_unorm(film_uhash(t_weave)) - 0.5) * film_gate_weave;
     float weave_y = (film_unorm(film_uhash(t_weave + 1u)) - 0.5) * film_gate_bounce;
 
     // Film breathing: subtle zoom pulse
-    float breath = 1.0 + (film_unorm(film_uhash(FRAMECOUNT * 0x6C62272Eu)) - 0.5)
+    float breath = 1.0 + (film_unorm(film_uhash(film_temporal_tick(1u) * 0x6C62272Eu)) - 0.5)
                        * film_breathing;
     float2 uv = (texcoord - 0.5) * breath + 0.5;
     uv += float2(weave_x, weave_y);
@@ -2091,7 +2145,7 @@ void film_grain_PS(
         float2 fc_grain = texcoord * float2(BUFFER_WIDTH, BUFFER_HEIGHT) / grain_scale;
         uint2  p   = uint2(fc_grain);
         uint   rng = film_uhash(film_uhash(p.y) + p.x);
-        if (film_grain_animate) rng += FRAMECOUNT;
+        if (film_grain_animate) rng += film_temporal_tick(1u);
 
         float3 u3 = float3(film_unorm(film_next(rng)),
                             film_unorm(film_next(rng)),
@@ -2556,8 +2610,10 @@ float3 film_ictcp_to_linear(float3 ictcp)
 
 float3 film_gamut_expand_ictcp(float3 lin, float strength, float neutral, float skin)
 {
-    // Normalise to 100 nit reference for ICtCp (expects nits, game signal ~0-1 = ~0-100 nit)
-    float3 ictcp = film_linear_to_ictcp(lin * 100.0);
+    // Normalise to nits for ICtCp. scRGB defines 1.0 = 80 nits (SDR reference
+    // white), so 80 is the correct scale for Pipeline 1 and a reasonable
+    // assumption for Pipeline 0/2 linearised signals.
+    float3 ictcp = film_linear_to_ictcp(lin * 80.0);
     float  I     = ictcp.x;
     float  ct    = ictcp.y;
     float  cp    = ictcp.z;
@@ -2582,7 +2638,7 @@ float3 film_gamut_expand_ictcp(float3 lin, float strength, float neutral, float 
 
     float2 ctcp_dir = (chroma > 0.00001) ? float2(ct, cp) / chroma : float2(1.0, 0.0);
     float3 ictcp_exp = float3(I, ctcp_dir * new_chroma);
-    return max(film_ictcp_to_linear(ictcp_exp) / 100.0, 0.0);
+    return max(film_ictcp_to_linear(ictcp_exp) / 80.0, 0.0);
 }
 
 // ---- Method 2: darktable UCS 2022 -----------------------------------
@@ -2682,24 +2738,54 @@ float3 film_gamut_expand_dtucs(float3 lin, float strength, float neutral, float 
     return max(film_dtucs_to_linear(float3(L, new_M, h)), 0.0);
 }
 
+// Chroma ceiling: limits expansion on already-saturated colours.
+// Never reduces chroma below original -- only prevents neon overshoot.
+float3 film_apply_chroma_ceiling(float3 linear_orig, float3 linear_expanded, float ceiling)
+{
+    if (ceiling < 0.001) return linear_expanded;
+
+    float3 lab_orig = film_linear_to_oklab(linear_orig);
+    float3 lab_exp  = film_linear_to_oklab(linear_expanded);
+
+    float chroma_orig = sqrt(lab_orig.y*lab_orig.y + lab_orig.z*lab_orig.z);
+    float chroma_exp  = sqrt(lab_exp.y*lab_exp.y   + lab_exp.z*lab_exp.z);
+
+    if (chroma_exp < 0.0001) return linear_expanded;
+
+    float threshold = lerp(chroma_orig + 0.35, chroma_orig, ceiling);
+    threshold = max(threshold, chroma_orig);
+
+    float chroma_limited = threshold * (1.0 - exp(-chroma_exp / max(threshold, 0.001)));
+    chroma_limited = max(chroma_limited, chroma_orig);
+
+    float scale = chroma_limited / chroma_exp;
+    lab_exp.y *= scale;
+    lab_exp.z *= scale;
+
+    return max(film_oklab_to_linear(lab_exp), 0.0);
+}
+
 // ---- Main expand function -- dispatches to selected method ----------
 float3 film_gamut_expand(float3 linear_in)
 {
+    float3 result;
     if (film_gamut_expand_method == 2)
-        return film_gamut_expand_dtucs(linear_in,
-               film_gamut_expand_strength,
-               film_gamut_expand_neutral,
-               film_gamut_expand_skin);
+        result = film_gamut_expand_dtucs(linear_in,
+                 film_gamut_expand_strength,
+                 film_gamut_expand_neutral,
+                 film_gamut_expand_skin);
     else if (film_gamut_expand_method == 1)
-        return film_gamut_expand_ictcp(linear_in,
-               film_gamut_expand_strength,
-               film_gamut_expand_neutral,
-               film_gamut_expand_skin);
+        result = film_gamut_expand_ictcp(linear_in,
+                 film_gamut_expand_strength,
+                 film_gamut_expand_neutral,
+                 film_gamut_expand_skin);
     else
-        return film_gamut_expand_oklab(linear_in,
-               film_gamut_expand_strength,
-               film_gamut_expand_neutral,
-               film_gamut_expand_skin);
+        result = film_gamut_expand_oklab(linear_in,
+                 film_gamut_expand_strength,
+                 film_gamut_expand_neutral,
+                 film_gamut_expand_skin);
+
+    return film_apply_chroma_ceiling(linear_in, result, film_gamut_expand_ceiling);
 }
 
 void film_gamut_expand_PS(
