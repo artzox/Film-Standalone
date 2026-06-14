@@ -1,5 +1,14 @@
 # Film-Standalone Changelog
 
+## [1.0.3] — 2026-06
+
+### Changes
+
+- **Ambient bloom separated from lens flare** — bloom now has its own `ENABLE_BLOOM` preprocessor gate, independent of `ENABLE_FLARE`. Previously both effects were bundled under `ENABLE_FLARE` and always ran together. You can now enable either independently: bloom glow without hex ghosts, flare without bloom, both, or neither. Enabling both costs the same as `ENABLE_FLARE=1` did previously (no added cost); disabling one reclaims its passes
+- Bloom UI controls (Bloom Intensity, Bloom Threshold, Bloom Adaptation) moved to their own **Bloom** menu category, previously shown under Lens Flare
+
+---
+
 ## [1.0.2] — 2026-06
 
 ### New Features

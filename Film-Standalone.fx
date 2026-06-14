@@ -90,6 +90,11 @@
     #define ENABLE_FLARE 0
 #endif
 
+// Ambient bloom (AmbientLight algorithm) -- independent of lens flare.
+#ifndef ENABLE_BLOOM
+    #define ENABLE_BLOOM 0
+#endif
+
 // Gamut expansion: expands Rec.709 chrominance toward Rec.2020 within the
 // existing HDR container. Luminance is already correct HDR -- only colour
 // primaries are constrained to Rec.709. Runs as final pass.
@@ -727,11 +732,13 @@ uniform float3 film_flare_color3 <
     ui_category = "Lens Flare";
     ui_tooltip  = "Tint for the quaternary ghost element (closest scaled).";
 > = float3(0.392, 0.925, 1.0);
+#endif // ENABLE_FLARE
 
 // --- Ambient Bloom (AmbientLight algorithm, no textures) ---
+#if ENABLE_BLOOM
 uniform float film_bloom_intensity <
     ui_type     = "drag"; ui_label = "Bloom Intensity";
-    ui_category = "Lens Flare";
+    ui_category = "Bloom";
     ui_tooltip  = "Intensity of the ambient bloom effect.\n"
                   "Boosts bright areas and spreads light across the scene,\n"
                   "creating a natural glow that follows the image brightness.\n"
@@ -742,7 +749,7 @@ uniform float film_bloom_intensity <
 
 uniform float film_bloom_threshold <
     ui_type     = "drag"; ui_label = "Bloom Threshold";
-    ui_category = "Lens Flare";
+    ui_category = "Bloom";
     ui_tooltip  = "Reduces bloom contribution from darker areas.\n"
                   "0.0 = all areas bloom. Higher = only bright areas bloom.";
     ui_min = 0.0; ui_max = 50.0; ui_step = 0.5;
@@ -750,13 +757,13 @@ uniform float film_bloom_threshold <
 
 uniform float film_bloom_adapt <
     ui_type     = "drag"; ui_label = "Bloom Adaptation";
-    ui_category = "Lens Flare";
+    ui_category = "Bloom";
     ui_tooltip  = "Scene luminance adaptation (from AmbientLight).\n"
                   "Reduces bloom in bright scenes, boosts in dark ones.\n"
                   "0.0 = disabled (static bloom). 0.5-1.0 = natural adaptation.";
     ui_min = 0.0; ui_max = 4.0; ui_step = 0.05;
 > = 0.7;
-#endif // ENABLE_FLARE
+#endif // ENABLE_BLOOM
 
 // ============================================================
 // Uniforms -- Gamut Expansion
@@ -992,9 +999,11 @@ sampler2D film_flare_dblur_samp { Texture = film_flare_dblur_tex; };
 texture2D film_flare_rblur_tex < pooled = false; >
 { Width = BUFFER_WIDTH/FLARE_DOWNSCALE; Height = BUFFER_HEIGHT/FLARE_DOWNSCALE; Format = RGBA16F; };
 sampler2D film_flare_rblur_samp { Texture = film_flare_rblur_tex; };
+#endif // ENABLE_FLARE
 
 // Ambient bloom textures (AmbientLight approach)
 // Downsample chain: 32x32 for adaptation detection, 1x1 for average luma
+#if ENABLE_BLOOM
 texture2D film_bloom_ds_tex < pooled = false; >
 { Width = 32; Height = 32; Format = RGBA8; };
 sampler2D film_bloom_ds_samp { Texture = film_bloom_ds_tex; };
@@ -1011,7 +1020,7 @@ sampler2D film_bloom_h_samp { Texture = film_bloom_h_tex; };
 texture2D film_bloom_v_tex < pooled = false; >
 { Width = BUFFER_WIDTH/16; Height = BUFFER_HEIGHT/16; Format = RGBA16F; };
 sampler2D film_bloom_v_samp { Texture = film_bloom_v_tex; };
-#endif // ENABLE_FLARE
+#endif // ENABLE_BLOOM
 
 #if ENABLE_GRAIN
 texture2D film_grain_raw_tex  < pooled = false; >
@@ -2312,7 +2321,7 @@ void film_flare_blend_PS(
 // ============================================================
 // Ambient Bloom PS (AmbientLight algorithm, no external textures)
 // ============================================================
-#if ENABLE_FLARE
+#if ENABLE_BLOOM
 
 // Pass A: Downsample to 32x32 for adaptation detection
 void film_bloom_ds_PS(
@@ -2428,7 +2437,7 @@ void film_bloom_blend_PS(
     color = float4(result + dither, 1.0);
 }
 
-#endif // ENABLE_FLARE
+#endif // ENABLE_BLOOM
 
 
 
@@ -2928,7 +2937,7 @@ technique Film_Standalone
         PixelShader  = film_grain_composite_PS;
     }
 #endif
-#if ENABLE_FLARE
+#if ENABLE_BLOOM
     // --- Ambient Bloom passes (AmbientLight approach) ---
     // Downsample + average for adaptation detection
     pass BloomDS { VertexShader = PostProcessVS; PixelShader = film_bloom_ds_PS;     RenderTarget = film_bloom_ds_tex; }
@@ -2944,6 +2953,8 @@ technique Film_Standalone
     pass BloomV3 { VertexShader = PostProcessVS; PixelShader = film_bloom_vblur_PS; RenderTarget = film_bloom_h_tex; }
     // Blend reads h_tex (last V wrote there)
     pass BloomBlend { VertexShader = PostProcessVS; PixelShader = film_bloom_blend_PS; }
+#endif // ENABLE_BLOOM
+#if ENABLE_FLARE
     // --- HexLensFlare passes ---
     pass FlarePrep
     {

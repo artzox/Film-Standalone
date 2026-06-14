@@ -1,6 +1,6 @@
 # Film-Standalone
 
-**Version 1.0.2**
+**Version 1.0.3**
 
 A cinematic film emulation shader for ReShade. Simulates the full photochemical film pipeline — colour negative response, print stock grading, optical grain, halation, lens optics, and camera artefacts. Designed for use across a broad game library with per-game presets.
 
@@ -31,7 +31,8 @@ All features are disabled by default. Enable only what you need to keep the UI c
 | `ENABLE_GRAIN` | 0 / 1 | Resolution-independent film grain |
 | `ENABLE_LENS` | 0 / 1 | Lens distortion, vignette, chromatic aberration, bokeh |
 | `ENABLE_DOF` | 0 / 1 | Depth of Field — independent of ENABLE_LENS, requires depth buffer |
-| `ENABLE_FLARE` | 0 / 1 | Hex lens flare ghosts and ambient bloom |
+| `ENABLE_FLARE` | 0 / 1 | Hex lens flare ghosts |
+| `ENABLE_BLOOM` | 0 / 1 | Ambient bloom (AmbientLight algorithm) — independent of flare |
 | `ENABLE_GATE` | 0 / 1 | Gate weave and film breathing |
 | `ENABLE_TRANSFER` | 0 / 1 | Composite artefacts and edge enhancement |
 | `ENABLE_VHS` | 0 / 1 | VHS chroma smear, tracking noise, dropout |
@@ -206,7 +207,11 @@ Implements the HexLensFlare algorithm — hexagonal ghost blobs at reflected pos
 |---|---|
 | Anamorphic Streak | Horizontal blue streak from cylindrical anamorphic lens elements. 0 = spherical lens only |
 
-**Ambient Bloom:**
+---
+
+### Ambient Bloom (`ENABLE_BLOOM=1`)
+
+Independent of lens flare — enable separately. Ports AmbientLight's colour-preserving bloom algorithm (no external textures). Runs at 1/16 resolution via a ping-pong blur chain, so the cost is low.
 
 | Setting | Description |
 |---|---|
@@ -284,11 +289,11 @@ All three pipelines supported:
 ## Performance Notes
 
 - All features are off by default — only enabled features cost GPU time
-- ENABLE_FLARE: flare passes run at 1/FLARE_DOWNSCALE² resolution (default 1/16th pixel count)
+- ENABLE_FLARE: hex flare passes run at 1/FLARE_DOWNSCALE² resolution (default 1/16th pixel count)
 - ENABLE_GRAIN: two passes at full resolution
 - ENABLE_LENS: single pass at full resolution. Default LENS_QUALITY=1 (Catmull-Rom, 9 samples per R/G/B). Bokeh 19-tap kernel only fires on pixels above threshold. Set LENS_QUALITY=0 for maximum performance
 - ENABLE_DOF: requires depth buffer; adds two passes
-- ENABLE_FLARE bloom: 8 passes at 1/256th resolution + one full-res blend — very low cost
+- ENABLE_BLOOM: bloom ping-pong chain runs at 1/16 resolution + one full-res blend — very low cost. Independent of ENABLE_FLARE
 
 ---
 
@@ -312,6 +317,12 @@ All three pipelines supported:
 ---
 
 ## Changelog
+
+### 1.0.3 — 2026-06
+
+- **Ambient bloom separated from lens flare** — independent `ENABLE_BLOOM` gate; bloom controls moved to their own Bloom menu category
+
+---
 
 ### 1.0.2 — 2026-06
 
