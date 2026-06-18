@@ -10,6 +10,7 @@ A cinematic film emulation shader for ReShade. Simulates the full photochemical 
 
 - ReShade 5.0 or later
 - DirectX 10/11/12, Vulkan, or OpenGL
+- **DirectX 9 is not supported.** The shader uses integer and bitwise operations (unsigned-integer hashing for grain, gate weave, breathing, and VHS noise) that require Shader Model 4.0 or higher. These constructs do not exist in DX9 / Shader Model 3.0 and the shader will fail to compile. To use it with a DX9 game, run the game through a DX9-to-DX11/12 wrapper such as DXVK or dgVoodoo2, which lets the shader run unmodified
 
 ---
 
