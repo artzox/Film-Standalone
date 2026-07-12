@@ -475,6 +475,16 @@ uniform bool film_grain_animate <
                   "Disable for a frozen grain pattern.";
 > = true;
 
+#endif // ENABLE_GRAIN
+
+// ============================================================
+// Global temporal uniforms + film cadence
+// Declared OUTSIDE the grain gate: FRAMECOUNT is used by VHS and other
+// frame-based effects, and gate weave / breathing must work with grain off.
+// ============================================================
+uniform uint  FRAMECOUNT  < source = "framecount"; >;
+uniform float FILM_TIMER  < source = "timer"; >;  // milliseconds since start
+
 // Temporal cadence: grain, weave, breathing step at film projection rate
 #if ENABLE_GRAIN || ENABLE_GATE
 uniform int film_cadence <
@@ -490,14 +500,8 @@ uniform int film_cadence <
     ui_items    = "Every frame (engine rate)\0""24 fps (film, recommended)\0"
                   "25 fps (PAL)\0""30 fps (NTSC)\0";
 > = 0;
-#endif // ENABLE_GRAIN || ENABLE_GATE
-
-uniform uint  FRAMECOUNT  < source = "framecount"; >;
-uniform float FILM_TIMER  < source = "timer"; >;  // milliseconds since start
 
 // film_temporal_tick: returns frame tick for cadence-controlled artifacts.
-// Defined outside feature gates so it compiles whenever either GRAIN or GATE is on.
-#if ENABLE_GRAIN || ENABLE_GATE
 uint film_temporal_tick(uint div)
 {
     if (film_cadence > 0)
@@ -509,7 +513,6 @@ uint film_temporal_tick(uint div)
     return FRAMECOUNT / div;
 }
 #endif // ENABLE_GRAIN || ENABLE_GATE
-#endif // ENABLE_GRAIN
 
 // ============================================================
 // Uniforms -- Lens

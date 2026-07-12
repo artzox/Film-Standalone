@@ -1,5 +1,13 @@
 # Film-Standalone Changelog
 
+## [1.0.4] — 2026-06
+
+### Bug Fixes
+
+- **Gate weave / breathing compile error with grain disabled** — the Temporal Cadence uniform, `film_temporal_tick` helper, and `FRAMECOUNT` / `FILM_TIMER` timer declarations were unintentionally trapped inside the `ENABLE_GRAIN` preprocessor gate. Any preset with `ENABLE_GATE=1` and `ENABLE_GRAIN=0` (and similarly `ENABLE_VHS=1` without grain) failed to compile with an "undeclared identifier" error. The whole temporal-uniforms block has been relocated after the grain uniform section: the timer declarations are now global (used by grain, gate, and VHS), and the cadence / helper stays gated on `ENABLE_GRAIN || ENABLE_GATE` — which now correctly activates for either feature on its own
+
+---
+
 ## [1.0.3] — 2026-06
 
 ### Changes

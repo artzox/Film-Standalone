@@ -1,6 +1,6 @@
 # Film-Standalone
 
-**Version 1.0.3**
+**Version 1.0.4**
 
 A cinematic film emulation shader for ReShade. Simulates the full photochemical film pipeline — colour negative response, print stock grading, optical grain, halation, lens optics, and camera artefacts. Designed for use across a broad game library with per-game presets.
 
@@ -318,6 +318,12 @@ All three pipelines supported:
 ---
 
 ## Changelog
+
+### 1.0.4 — 2026-06
+
+- **Bug fix:** gate weave and VHS effects failed to compile when film grain was disabled — the timer uniforms and cadence helper were mis-scoped inside the grain preprocessor gate
+
+---
 
 ### 1.0.3 — 2026-06
 
