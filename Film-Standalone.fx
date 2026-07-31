@@ -954,20 +954,11 @@ uniform float film_vhs_head_switch <
 // Textures and samplers
 // ============================================================
 
-// Depth of field CoC texture (requires ENABLE_LENS + depth buffer)
-#if ENABLE_LENS
-texture2D film_coc_tex < pooled = false; >
-{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R16F; };
-sampler2D film_coc_samp { Texture = film_coc_tex;
-                           AddressU = CLAMP; AddressV = CLAMP; };
-#endif
-
-#if ENABLE_DOF
-texture2D film_dof_tex  < pooled = false; >
-{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16F; };
-sampler2D film_dof_samp { Texture = film_dof_tex;
-                           AddressU = CLAMP; AddressV = CLAMP; };
-#endif // ENABLE_DOF
+// NOTE: depth-of-field is computed inline in a single pass (see the DoF block
+// in the lens pixel shader) and does not use intermediate render targets. The
+// former film_coc_tex / film_dof_tex full-resolution textures were vestigial
+// from an earlier multi-pass design -- never written, never sampled -- and
+// have been removed; they only consumed VRAM.
 
 #if ENABLE_FLARE
 // All flare textures at reduced resolution for performance

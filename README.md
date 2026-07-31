@@ -1,6 +1,6 @@
 # Film-Standalone
 
-**Version 1.0.4**
+**Version 1.0.5**
 
 A cinematic film emulation shader for ReShade. Simulates the full photochemical film pipeline — colour negative response, print stock grading, optical grain, halation, lens optics, and camera artefacts. Designed for use across a broad game library with per-game presets.
 
@@ -318,6 +318,12 @@ All three pipelines supported:
 ---
 
 ## Changelog
+
+### 1.0.5 — 2026-06
+
+- **Performance:** removed two orphaned full-resolution DoF textures that were allocated but never used (~82 MB VRAM at 4K)
+
+---
 
 ### 1.0.4 — 2026-06
 

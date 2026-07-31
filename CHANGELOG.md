@@ -1,5 +1,13 @@
 # Film-Standalone Changelog
 
+## [1.0.5] — 2026-06
+
+### Performance
+
+- **Orphaned depth-of-field textures removed** — `film_coc_tex` (R16F) and `film_dof_tex` (RGBA16F) were declared at full buffer resolution with `pooled = false`, but were never written to and never sampled anywhere. They were vestigial from an earlier multi-pass DoF design; the effect is computed inline in a single pass. At 4K they reserved roughly 82 MB of VRAM between them for nothing, with `film_coc_tex` allocated whenever `ENABLE_LENS=1`. Removing them cannot change output
+
+---
+
 ## [1.0.4] — 2026-06
 
 ### Bug Fixes
