@@ -1,6 +1,6 @@
 # Film-Standalone
 
-**Version 1.0.5**
+**Version 1.0.6**
 
 A cinematic film emulation shader for ReShade. Simulates the full photochemical film pipeline — colour negative response, print stock grading, optical grain, halation, lens optics, and camera artefacts. Designed for use across a broad game library with per-game presets.
 
@@ -90,7 +90,7 @@ All features are disabled by default. Enable only what you need to keep the UI c
 
 | Setting | Description |
 |---|---|
-| Film Stock | Select from 14 stock profiles (see below) |
+| Film Stock | Select from 15 stock profiles (see below) |
 | Profile Strength | Blend between neutral and selected stock (0=off, 1=full) |
 | Black Lift Amount | Controls shadow density of film print stock. Set to 0 for OLED displays to preserve deep blacks |
 | Acutance | Chemical edge enhancement from development adjacency effects — makes film look simultaneously sharp and organic. 0.1–0.2 = fine grain stocks, 0.3–0.5 = faster stocks |
@@ -117,11 +117,12 @@ All features are disabled by default. Enable only what you need to keep the UI c
 | 6 | Kodachrome 25 | Warm vintage slide. Red/orange push, high contrast |
 | 7 | Fuji Eterna 500 | Desaturated cool cinema. Clinical, analytical |
 | 8 | Kodak Vision3 200T + 2383 | Clean modern tungsten cinema. Less grain than 500T |
-| 9 | Fuji Eterna Vivid 160T | Painterly soft highlights, mid-saturation boost. Discontinued 2013 |
+| 9 | Fuji Eterna Vivid 160 | Painterly soft highlights, mid-saturation boost. Discontinued 2013 |
 | 10 | Fuji Eterna 250D | Cool clean daylight cinema. Neutral with slight blue cast |
 | 11 | Kodak Ektachrome 100 | Punchy blues and cyans. Vivid greens, slide film character |
 | 12 | Kodak Double-X | B&W noir emulation. High contrast, warm sepia tint |
 | 13 | Cinestill 800T | Vision3 500T with remjet removed. Extreme halation — raise Halation to 0.6+ for full character |
+| 14 | Kodak Ektachrome E200 | Gentler sibling of Ektachrome 100 — same dye family and contrast class, moderately enhanced saturation, natural skin tones. Fine T-grain (rms 12); pushes to EI 800 |
 
 ---
 
@@ -318,6 +319,14 @@ All three pipelines supported:
 ---
 
 ## Changelog
+
+### 1.0.6 — 2026-09
+
+- **Added:** Kodak Ektachrome E200 (profile 14) — a gentler sibling of Ektachrome 100, positioned from Kodak's E-28 datasheet
+- **Fixed:** the shader header's profile list, which listed only 0–6 and mis-numbered two entries
+- Profiles 0–13 render identically to 1.0.5
+
+---
 
 ### 1.0.5 — 2026-06
 

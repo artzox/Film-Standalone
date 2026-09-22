@@ -1,5 +1,24 @@
 # Film-Standalone Changelog
 
+## [1.0.6] — 2026-09
+
+### Added
+
+- **Kodak Ektachrome E200 film stock profile (#14)** — daylight-balanced 200-speed colour transparency film, discontinued 2011. Hand-tuned the same way as the other profiles and positioned from KODAK Publication E-28 (rev 9-05), which places it alongside Ektachrome 100: the "preferred contrast of an EI 100-speed color transparency film", the same EKTACHROME image-dye family (a single scanner setup serves them all), "moderately enhanced" rather than vivid saturation with natural-looking skin tones, and more tone gradation. It is therefore a gentler sibling of profile 11 — the same matrix direction at about 55% strength, saturation 1.12 against 1.20, the same 1.05 contrast and a slightly softer shoulder. T-GRAIN emulsions with diffuse rms granularity 12, so pair it with a low Grain Size; E200 pushes to EI 800 with minimal shift, so for a pushed look raise Grain Intensity while keeping Grain Size low
+
+### Fixed
+
+- **Shader header profile list** — it listed only profiles 0–6 of the 14 in the dropdown and mis-numbered two of them, claiming `5 = Fuji Eterna 500` when 5 is Kodak Portra 400 and Eterna 500 is 7. It now lists all 15, matching the runtime Film Stock dropdown
+
+### Changed
+
+- **"Fuji Eterna Vivid 160T" renamed to "Fuji Eterna Vivid 160"** — Fujifilm's product name for type 8543. Presets are unaffected: they store the profile index, not its label
+- **Double-X's warm tint labelled as a toning choice** — 5222 carries no colour; the tint reproduces toned prints, and the comment now says how to neutralise it. Output unchanged
+
+*Profiles 0–13 render identically to 1.0.5; the only change to output is the new profile 14*
+
+---
+
 ## [1.0.5] — 2026-06
 
 ### Performance

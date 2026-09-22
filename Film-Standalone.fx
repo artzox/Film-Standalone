@@ -30,14 +30,22 @@
     ENABLE_VHS          0/1   VHS chroma smear, tracking, dropout
     PIPELINE            0/1/2 0=SDR, 1=scRGB HDR, 2=ST.2084 HDR
 
-    Film stock profiles (FILM_STOCK_PROFILE):
-      0 = Neutral (no colour transform)
-      1 = Kodak Vision3 500T  (warm tungsten cinema)
-      2 = Kodak Vision3 250D  (neutral daylight cinema)
-      3 = Kodak 2383 Print    (Hollywood warm print stock)
-      4 = Fuji Velvia 50      (vivid saturated slide)
-      5 = Fuji Eterna 500     (desaturated cool cinema)
-      6 = Kodachrome 25       (classic punchy vintage)
+    Film stock profiles (runtime "Film Stock" dropdown):
+      0  = Neutral (no colour transform)
+      1  = Kodak Vision3 500T + 2383  (tungsten cinema, graded)
+      2  = Kodak Vision3 250D + 2383  (daylight cinema, graded)
+      3  = Kodak 2383 Print only      (warm Hollywood print stock)
+      4  = Fuji Velvia 50             (vivid saturated slide)
+      5  = Kodak Portra 400           (pastel portrait negative)
+      6  = Kodachrome 25              (punchy warm vintage slide)
+      7  = Fuji Eterna 500            (desaturated cool cinema)
+      8  = Kodak Vision3 200T + 2383  (clean modern blockbuster)
+      9  = Fuji Eterna Vivid 160      (painterly soft highlights)
+      10 = Fuji Eterna 250D           (cool clean daylight cinema)
+      11 = Kodak Ektachrome 100       (punchy blues/cyans, slide)
+      12 = Kodak Double-X             (B&W noir emulation)
+      13 = Cinestill 800T             (remjet removed, strong halation)
+      14 = Kodak Ektachrome E200      (natural slide, fine grain, pushable)
 
     Lens presets (LENS_PRESET):
       0 = Custom (use manual sliders)
@@ -362,11 +370,12 @@ uniform int film_stock_select <
                   "Kodachrome 25 (punchy warm vintage slide)\0"
                   "Fuji Eterna 500 (desaturated cool cinema)\0"
                   "Kodak Vision3 200T + 2383 (clean modern blockbuster)\0"
-                  "Fuji Eterna Vivid 160T (painterly soft highlights)\0"
+                  "Fuji Eterna Vivid 160 (painterly soft highlights)\0"
                   "Fuji Eterna 250D (cool clean daylight cinema)\0"
                   "Kodak Ektachrome 100 (punchy blues/cyans, slide)\0"
                   "Kodak Double-X (B&W noir emulation)\0"
-                  "Cinestill 800T (Vision3 remjet-removed, strong halation)\0";
+                  "Cinestill 800T (Vision3 remjet-removed, strong halation)\0"
+                  "Kodak Ektachrome E200 (natural slide, fine grain, pushable)\0";
 > = 1;
 
 uniform float film_base_density <
@@ -1214,7 +1223,7 @@ float3 apply_film_profile(float3 c_lin, int profile)
     }
     else if (profile == 9)
     {
-        // Fuji Eterna Vivid 160T (discontinued 2013)
+        // Fuji Eterna Vivid 160 (discontinued 2013)
         // Bold contrast, soft highlights blending painterly into midtones
         // Natural skin tones, slight cool/green cast in shadows
         float3x3 m = float3x3(
@@ -1267,7 +1276,9 @@ float3 apply_film_profile(float3 c_lin, int profile)
         // High contrast, grain, classic noir look
         // Convert to luma then apply B&W contrast curve
         float bw = dot(c, float3(0.2126, 0.7152, 0.0722));
-        // Slight warm tint (sepia-adjacent, as B&W prints often had)
+        // Slight warm tint (sepia-adjacent, as toned B&W prints often had).
+        // A toning choice, not a property of the film -- 5222 carries no
+        // colour. Set all three multipliers to 1.0 for an untoned print.
         c = float3(bw * 1.02, bw * 0.98, bw * 0.90);
         // High contrast S-curve
         c = c * (1.0 - 0.06 * film_profile_black_lift) + 0.010 * film_profile_black_lift;
@@ -1293,6 +1304,33 @@ float3 apply_film_profile(float3 c_lin, int profile)
         c = 1.0 - (1.0-c) * (1.0 - smoothstep(0.60, 0.95, c) * 0.20);
         // Note: Cinestill's defining trait is extreme halation (remjet removed).
         // Set film_halation high (0.6+) with warm/red tint for full effect.
+    }
+    else if (profile == 14)
+    {
+        // Kodak Ektachrome E200 (daylight slide, E-6, discontinued 2011)
+        // Hand-tuned like its siblings, positioned from KODAK Publication E-28
+        // (rev 9-05), which places E200 alongside Ektachrome 100:
+        //   - "preferred contrast of an EI 100-speed color transparency film"
+        //       -> same contrast class as profile 11
+        //   - the EKTACHROME family shares one set of image dyes (a single
+        //     scanner setup serves them all) -> same hue direction as 11
+        //   - "moderately enhanced" saturation with "natural-looking skin
+        //     tones" -> gentler than the vivid profile 11
+        //   - "more tone gradation" -> marginally softer shoulder
+        // So: profile 11's matrix at ~55% strength, saturation 1.12 against
+        // 1.20, the same 1.05 contrast, shoulder 0.13 against 0.15.
+        // T-GRAIN emulsions, diffuse rms granularity 12 -- pair with a low
+        // Grain Size. Pushes to EI 800 with minimal shift: for a pushed look
+        // raise Grain Intensity and keep Grain Size low.
+        float3x3 m = float3x3(
+             0.9890,  0.0028, -0.0055,
+            -0.0083,  1.0165,  0.0028,   // family green lift, moderated
+             0.0165, -0.0110,  1.0495);  // family cyan/blue lift, moderated
+        c = mul(m, c);
+        float sat_luma_e2 = dot(c, float3(0.2126, 0.7152, 0.0722));
+        c = lerp(sat_luma_e2.xxx, c, 1.12);   // moderately enhanced
+        c = pow(max(c, 0.0), 1.05);           // EI 100 reversal contrast class
+        c = 1.0 - (1.0-c) * (1.0 - smoothstep(0.82, 1.0, c) * 0.13);
     }
 
     return max(c, 0.0);
